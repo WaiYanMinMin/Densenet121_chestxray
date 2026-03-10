@@ -12,9 +12,7 @@ import gradio as gr
 
 # Must match notebook
 LABELS = [
-    "Atelectasis",
-    "Cardiomegaly",
-    "Consolidation",
+    "Lung Opacity",
     "Edema",
     "Pleural Effusion",
 ]
