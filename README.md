@@ -11,16 +11,55 @@ Pre-trained DenseNet-121 on CheXpert for 5 labels: Atelectasis, Cardiomegaly, Co
 pip install kagglehub torch torchvision pandas pillow scikit-learn tqdm seaborn matplotlib
 ```
 
-## Deploy (upload X-ray → predictions)
+# Deployment Guide
 
-1. **Save model** — In the notebook, run the “Save model for deployment” cell.
-2. **Get model to your PC (Colab kernel)** — Run the “copy model to Google Drive” cell, then open [drive.google.com](https://drive.google.com) → **My Drive → ColabOutput** → download `chest_xray_densenet.pth` → put it in `models/chest_xray_densenet.pth` in this project.
-3. **Run app** — From project root:
+## 1) Save and place model
+
+1. In the notebook, run the **Save model for deployment** cell.
+2. If using Colab, run the **copy model to Google Drive** cell.
+3. Download `chest_xray_densenet.pth` and place it at:
+
+```bash
+models/chest_xray_densenet.pth
+```
+
+## 2) Create and activate virtual environment
+
+From the project root:
+
+```bash
+python -m venv .venv
+```
+
+Activate it:
+
+- **Windows (PowerShell):**
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+```
+
+- **Windows (Command Prompt):**
+
+```bat
+.\.venv\Scripts\activate.bat
+```
+
+- **macOS/Linux:**
+
+```bash
+source .venv/bin/activate
+```
+
+## 3) Install dependencies and run app
 
 ```bash
 pip install -r requirements-deploy.txt
 python app.py
 ```
 
-Open the URL (e.g. http://127.0.0.1:7860), upload an X-ray.
+Open the printed URL (for example, `http://127.0.0.1:7860`) and upload an X-ray image.
 
+## Live Demo
+
+Hugging Face Space: https://huggingface.co/spaces/Wymm2003/chest_X_ray_detection

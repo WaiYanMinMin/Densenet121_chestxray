@@ -1,0 +1,8 @@
+Upload chest X-ray,Prediction,timestamp
+,,2026-03-10 20:30:08.714895
+.gradio\flagged\Upload chest X-ray\2caa885af2e8fe0ea4e8\lung_opacity.jpg,"**Predictions:**
+- — **Lung Opacity**: 17.2%
+- — **Edema**: 3.9%
+- — **Pleural Effusion**: 2.6%
+
+**Detected:** No positive findings (above threshold).",2026-03-10 20:32:44.650936

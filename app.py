@@ -33,7 +33,7 @@ def get_model(num_classes: int):
     return model
 
 
-def load_model(path: str = "models/chest_xray_densenet.pth"):
+def load_model(path: str = "chest_xray_densenet.pth"):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = get_model(len(LABELS)).to(device)
     state = torch.load(path, map_location=device)
@@ -65,7 +65,7 @@ def predict(image: Image.Image, model, device) -> str:
 
 def main():
     import os
-    model_path = os.path.join(os.path.dirname(__file__), "models", "chest_xray_densenet.pth")
+    model_path = os.path.join(os.path.dirname(__file__),"chest_xray_densenet.pth")
     if not os.path.isfile(model_path):
         raise FileNotFoundError(
             f"Model not found at {model_path}. "
@@ -78,7 +78,7 @@ def main():
         inputs=gr.Image(type="pil", label="Upload chest X-ray"),
         outputs=gr.Markdown(label="Prediction"),
         title="Chest X-ray classifier",
-        description="Upload a chest X-ray image. The model predicts: Atelectasis, Cardiomegaly, Consolidation, Edema, Pleural Effusion.",
+        description="Upload a chest X-ray image. The model predicts: Lung Opacity Edema, Pleural Effusion.",
     )
     demo.launch()
 
