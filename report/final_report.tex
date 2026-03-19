@@ -1,0 +1,220 @@
+\documentclass[12pt]{article}
+\usepackage[a4paper,margin=1in]{geometry}
+\usepackage{setspace}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{hyperref}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage[round]{natbib}
+
+\begin{document}
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    {\Large \textbf{Advanced Machine Learning and Neural Networks}\par}
+    \vspace{1.2cm}
+    {\huge \textbf{Final Report}\par}
+    \vspace{0.5cm}
+    {\Large DenseNet-121 for Multi-label Chest X-ray Classification\par}
+    \vspace{2cm}
+
+    \begin{tabular}{>{\bfseries}p{4cm}p{9cm}}
+        Student Name: & \rule{8cm}{0.4pt} \\
+        Student ID: & \rule{8cm}{0.4pt} \\
+        Unit Code: & \rule{8cm}{0.4pt} \\
+        Lecturer/Tutor: & \rule{8cm}{0.4pt} \\
+        Submission Date: & \today \\
+    \end{tabular}
+
+    \vfill
+    \begin{minipage}{0.9\textwidth}
+        \small
+        \textbf{Declaration:} I confirm that this report is my own work and that all external sources used in this report have been acknowledged.
+    \end{minipage}
+\end{titlepage}
+
+\onehalfspacing
+
+\section*{Abstract}
+This report explains my transfer-learning pipeline for multi-label chest X-ray classification using DenseNet-121 on CheXpert. I focus on three labels chosen from the training split by positive frequency: \textit{Lung Opacity}, \textit{Pleural Effusion}, and \textit{Edema}. In the notebook, I fine-tune a pre-trained DenseNet-121 model with a sigmoid output head and binary cross-entropy loss. I review the model architecture, discuss why this backbone is a reasonable starting point, and suggest realistic improvements. I then evaluate training-set performance using standard metrics and training/validation loss trends over five epochs. Predicted labels are compared with ground truth through confusion matrices; one complete matrix from the saved run is available and analyzed in detail. The overall result is a solid baseline with stable learning behavior, but class imbalance and fixed thresholding still create substantial false positives and false negatives.
+
+\section{Task Overview and Experimental Setup}
+The assignment asks for four main outputs: (1) investigate the architecture and suggest improvements, (2) evaluate training performance with known metrics, (3) compare predicted and true labels using confusion matrices, and (4) provide a clear summary. I used the notebook outputs as my primary evidence and cross-checked architecture details with official references.
+
+The model is DenseNet-121 from \texttt{torchvision}, initialized with ImageNet weights (\texttt{IMAGENET1K\_V1}), then adapted for multi-label output \citep{torchvision_densenet121}. The data source is CheXpert, a large chest radiograph dataset with uncertainty labels and expert comparison benchmarks \citep{irvin2019chexpert,chexpert_site}. In this notebook configuration, the training label subset is selected by frequency from the train split, giving:
+\begin{itemize}
+    \item Lung Opacity
+    \item Pleural Effusion
+    \item Edema
+\end{itemize}
+
+The notebook output shows these positive counts in the training data:
+\begin{itemize}
+    \item Lung Opacity: 105,581
+    \item Pleural Effusion: 86,187
+    \item Edema: 52,246
+\end{itemize}
+This already shows the labels are imbalanced, even inside the top-3 set, which directly affects precision/recall behavior and the shape of each confusion matrix.
+
+\section{Architecture Investigation}
+\subsection{DenseNet-121 design}
+DenseNet-121 belongs to the DenseNet family introduced by Huang et al. \citep{huang2018densenet}. The central idea is dense connectivity: each layer receives the concatenation of all previous feature maps inside a dense block. This is different from plain feed-forward stacks and also different from residual addition in ResNets. In practical terms, these dense skip paths improve feature reuse and gradient flow, which is useful when fine-tuning deep models with limited training time.
+
+DenseNet-121 follows the DenseNet-BC design (bottleneck + compression) with:
+\begin{itemize}
+    \item an initial stem convolution/pooling stage,
+    \item four dense blocks (commonly summarized as 6, 12, 24, and 16 bottleneck layers),
+    \item transition layers that downsample and compress channels,
+    \item global pooling and a classifier head.
+\end{itemize}
+Torchvision documents this model as a standard implementation with ImageNet pre-trained weights and gives reproducible preprocessing assumptions \citep{torchvision_densenet121}.
+
+\subsection{How the notebook adapts the architecture}
+In the notebook, the original classifier is replaced by:
+\[
+\texttt{Linear}(1024, 3)
+\]
+to match three target labels. The notebook output records:
+\begin{itemize}
+    \item Model: DenseNet
+    \item Classifier head: \texttt{Linear(in\_features=1024, out\_features=3, bias=True)}
+    \item Total parameters: 6,956,931
+    \item Trainable parameters: 6,956,931
+\end{itemize}
+
+The full model is fine-tuned end-to-end (all parameters trainable). For multi-label prediction, logits are passed through sigmoid and thresholded at 0.5. Loss is binary cross-entropy with logits:
+\[
+\mathcal{L}_{\text{BCE}} = -\frac{1}{N}\sum_{n=1}^{N}\sum_{c=1}^{3}
+\left[y_{n,c}\log\sigma(z_{n,c}) + (1-y_{n,c})\log(1-\sigma(z_{n,c}))\right]
+\]
+This setup is appropriate because each pathology label is not mutually exclusive.
+
+\subsection{Why this architecture is suitable}
+DenseNet-121 makes sense here for three practical reasons.
+
+First, feature reuse helps with medical images where visual cues are subtle and spread across scales. Chest findings like edema or pleural fluid can be diffuse and low contrast, so reusing earlier feature maps can help preserve useful signals.
+
+Second, ImageNet transfer learning usually helps convergence in chest X-ray tasks, especially in student projects with limited compute. The notebook runs only five epochs and still shows consistent downward loss trends, which matches that expectation.
+
+Third, the model is large enough to capture texture and structural cues but still manageable to train on standard cloud GPU sessions. This matters for reproducibility in coursework.
+
+\section{Possible Improvements to the Architecture and Training Strategy}
+The current pipeline is a reasonable baseline, but there are clear ways to make it more reliable.
+
+\subsection{1) Label-specific threshold tuning}
+Using a fixed threshold of 0.5 for all classes is simple but often suboptimal in imbalanced medical data. Different labels have different prevalence and score distributions. A better approach is to tune thresholds per label on validation data by maximizing F1, Youden index, or a recall-constrained objective. This can reduce false negatives in clinically critical labels while avoiding over-triggering common findings.
+
+\subsection{2) Better imbalance handling}
+The top-3 labels are still imbalanced. Loss-level correction can help:
+\begin{itemize}
+    \item class-weighted BCE,
+    \item focal loss to reduce domination by easy negatives,
+    \item or balanced mini-batch sampling.
+\end{itemize}
+The goal is not only higher average score, but more stable per-label recall.
+
+\subsection{3) Partial freezing and gradual unfreezing}
+The notebook trains all layers immediately. A staged strategy can be more stable:
+\begin{enumerate}
+    \item freeze most backbone layers and train only classifier first,
+    \item unfreeze deeper dense blocks progressively,
+    \item use a lower learning rate for backbone than for head.
+\end{enumerate}
+This can reduce the risk of over-updating generic visual features too early.
+
+\subsection{4) Calibration and uncertainty-aware decision support}
+In clinical-style tasks, calibrated probabilities matter. Post-hoc calibration (temperature scaling or isotonic regression) can improve confidence quality. Since CheXpert includes uncertainty labels in its original design, uncertainty-aware training variants could also be explored instead of mapping uncertain labels directly to zero.
+
+\subsection{5) Backbone benchmarking}
+DenseNet-121 is a solid baseline, but one model is not enough to claim best choice. A fair comparison against EfficientNet or ConvNeXt under identical data splits and metrics would make model selection stronger and more defensible in the final submission.
+
+\section{Performance Evaluation on the Training Dataset}
+\subsection{Known metric and training dynamics}
+The notebook uses standard multi-label metrics (AUC, precision, recall, F1) and tracks train/validation loss by epoch. The recorded loss history is:
+
+\begin{table}[H]
+\centering
+\caption{Training and validation loss over epochs}
+\begin{tabular}{ccc}
+\toprule
+Epoch & Train Loss & Validation Loss \\
+\midrule
+1 & 0.5372 & 0.4281 \\
+2 & 0.5098 & 0.4231 \\
+3 & 0.4998 & 0.4219 \\
+4 & 0.4944 & 0.3903 \\
+5 & 0.4902 & 0.3865 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Both curves go down, and in this run validation loss stays below training loss. That can happen in multi-label setups because of preprocessing effects and differences between train and validation batches. The key takeaway is that training is stable and does not diverge.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{outputs/report_figures/train_val_loss_curve.png}{
+    \includegraphics[width=0.78\textwidth]{outputs/report_figures/train_val_loss_curve.png}
+}{
+    \fbox{\parbox{0.78\textwidth}{\centering Placeholder: insert \texttt{train\_val\_loss\_curve.png} generated from notebook.}}
+}
+\caption{Training and validation loss curves.}
+\end{figure}
+
+\subsection{Interpretation}
+The mostly monotonic drop suggests the network is learning useful features for the selected labels within five epochs. At the same time, loss by itself does not tell us if error types are acceptable. That is why class-wise precision/recall and confusion matrices are still necessary.
+
+\section{Confusion Matrix Analysis: Predicted vs Ground Truth Labels}
+The notebook defines one binary confusion matrix per label, comparing true negatives/positives and false negatives/positives. In the captured run, one fully rendered matrix is available for \textit{Lung Opacity} with:
+\[
+TN=78{,}603,\quad FP=39{,}230,\quad FN=36{,}355,\quad TP=69{,}226
+\]
+Total samples in this matrix: \(223{,}414\), matching the training table scale.
+
+From this matrix:
+\[
+\text{Precision}=\frac{TP}{TP+FP}=0.6383,\quad
+\text{Recall}=\frac{TP}{TP+FN}=0.6557,
+\]
+\[
+F1=0.6469,\quad
+\text{Accuracy}=0.6617,\quad
+\text{Specificity}=\frac{TN}{TN+FP}=0.6671.
+\]
+
+\subsection{What this tells us}
+For this label, the model is reasonably balanced (precision and recall both around 0.64--0.66), but error counts are still large in absolute numbers because the dataset itself is large. False positives are high (39k+), which could create alert fatigue in triage-like settings. False negatives are also high (36k+), which is risky when missed findings matter. So this is a useful baseline, but not yet strong enough for high-stakes use without threshold tuning and better calibration.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{outputs/report_figures/train_confusion_matrices.png}{
+    \includegraphics[width=0.95\textwidth]{outputs/report_figures/train_confusion_matrices.png}
+}{
+    \fbox{\parbox{0.95\textwidth}{\centering Placeholder: insert \texttt{train\_confusion\_matrices.png} generated from notebook.}}
+}
+\caption{Per-label confusion matrices on training data (Lung Opacity, Pleural Effusion, Edema).}
+\end{figure}
+
+For \textit{Pleural Effusion} and \textit{Edema}, the same confusion-matrix method is applied in the notebook code. In the final submission package, the exported figure should include all three matrices so class-specific failure modes can be compared side-by-side. This is important because one class can look strong on recall while another is much weaker under the same threshold.
+
+\section{Overall Summary}
+This project delivers a complete multi-label chest X-ray pipeline using a pre-trained DenseNet-121 backbone and CheXpert data. The architecture review shows why DenseNet is a practical baseline for this assignment: feature reuse, stable gradient flow, and manageable training cost. The implementation follows standard multi-label practice with a modified linear head, sigmoid outputs, and BCE-with-logits loss.
+
+Performance evaluation on training data is supported by known metrics and loss trajectories. Across five epochs, train and validation loss both decrease, which indicates stable learning. Confusion-matrix analysis (using the fully available Lung Opacity matrix) shows moderate performance, but both false positives and false negatives remain significant. This is why reporting a single number is not enough; confusion structure gives a more honest picture of strengths and weaknesses.
+
+The highest-impact next steps are clear: per-label threshold tuning, imbalance-aware losses, staged fine-tuning, and probability calibration. With careful validation, these changes should improve precision--recall trade-offs and make outputs more dependable.
+
+In short, the current DenseNet-121 model is a solid starting point and satisfies the assignment requirements for architecture analysis, metric-based evaluation, confusion-matrix comparison, and final summary. The proposed improvements are practical and directly motivated by both the literature and the results observed in this notebook.
+
+\section*{Short Deployment Note (Not Main Focus)}
+As a lightweight deployment step, the trained model can be served with a simple Gradio app and published on Hugging Face Spaces \citep{gradio_docs,hf_spaces_docs}. In this project, \texttt{app.py} loads the saved checkpoint, applies the same image preprocessing, and returns multi-label probabilities for uploaded X-rays. For Spaces deployment, the essential files are \texttt{app.py}, \texttt{requirements.txt} (or deployment requirements file), and the model weight file in the expected path.
+
+This deployment is useful for demonstration and testing, but it should be treated as a prototype. Inference speed depends on available hardware, and outputs should include a clear disclaimer that predictions are decision-support only and not a clinical diagnosis.
+
+\section*{References}
+\bibliographystyle{apalike}
+\bibliography{references}
+
+\end{document}
