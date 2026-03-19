@@ -19,9 +19,6 @@ Dataset: CheXpert (training and validation splits; top-3 selected labels)
 - ImageNet pre-training improves convergence when the target dataset is limited or imbalanced.
 - Using the top-3 most frequent labels increases statistical support for training and evaluation reliability.
 
-### Evidence from Notebook
-- Label selection and preprocessing are implemented in the data preparation section.
-- Model construction is implemented in `get_densenet(num_classes)`.
 
 ---
 
@@ -32,11 +29,7 @@ Dataset: CheXpert (training and validation splits; top-3 selected labels)
 - Classification head: final `classifier` replaced with `Linear(in_features, 3)` for 3-label output.
 - Loss: `BCEWithLogitsLoss` for multi-label learning.
 - Output interpretation: sigmoid per label with threshold 0.5.
-
-### Architecture Evidence
-- The notebook includes a dedicated architecture print cell:
-  - `print(model)` for full architecture
-  - parameter statistics for total/trainable parameters
+**[Insert Figure 1 here: `model_architecture.png`]**  
 
 ### Interpretation
 - The backbone captures rich hierarchical visual features.
@@ -63,10 +56,6 @@ Dataset: CheXpert (training and validation splits; top-3 selected labels)
 - Add LR scheduling and early stopping based on validation metrics.
 - Expected benefit: prevent overfitting and improve final checkpoint quality.
 
-### Improvement 5: Backbone Comparison
-- Compare DenseNet-121 against EfficientNet/ConvNeXt under same data split and metrics.
-- Expected benefit: stronger evidence for model selection decisions.
-
 ---
 
 ## Criterion 4: Model Evaluation Using Training Dataset (Max 5)
@@ -76,14 +65,9 @@ Dataset: CheXpert (training and validation splits; top-3 selected labels)
 - Metrics used: AUC, Precision, Recall, F1 (per label + macro average).
 - This satisfies the requirement to use a known metric on training data.
 
-### Results
-- Use notebook outputs and exported files:
-  - `outputs/report_figures/train_metrics_table.csv`
-  - `outputs/report_figures/macro_metrics_table.csv`
-  - `outputs/report_figures/macro_metric_comparison.png`
 
 ### Plot Placement
-**[Insert Figure 1 here: `macro_metric_comparison.png`]**  
+**[Insert Figure 2 here: `macro_metric_comparison.png`]**  
 Caption: Macro metric comparison between training and validation splits.
 
 ### Short Interpretation
