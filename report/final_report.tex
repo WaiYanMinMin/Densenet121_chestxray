@@ -92,6 +92,17 @@ The full model is fine-tuned end-to-end (all parameters trainable). For multi-la
 \]
 This setup is appropriate because each pathology label is not mutually exclusive.
 
+\subsubsection*{Relevant implementation excerpt: classifier adaptation}
+\begin{verbatim}
+def get_densenet(num_classes):
+    model = models.densenet121(weights="IMAGENET1K_V1")
+    model.classifier = nn.Linear(
+        model.classifier.in_features, num_classes
+    )
+    return model
+\end{verbatim}
+\textbf{Why this matters.} This line is the key transfer-learning step. The DenseNet backbone stays pre-trained, but the last layer is replaced so output size matches the three assignment labels.
+
 \subsection{Why this architecture is suitable}
 DenseNet-121 makes sense here for three practical reasons.
 
@@ -163,6 +174,14 @@ Both curves go down, and in this run validation loss stays below training loss. 
 \caption{Training and validation loss curves.}
 \end{figure}
 
+\subsubsection*{Relevant implementation excerpt: macro metrics}
+\begin{verbatim}
+metric_names = ["AUC", "Precision", "Recall", "F1"]
+train_vals = [float(train_macro[m]) for m in metric_names]
+val_vals = [float(val_macro[m]) for m in metric_names]
+\end{verbatim}
+\textbf{Why this matters.} These lines collect the four core macro metrics used in the report. They are useful because they summarize performance from different angles instead of relying on one number.
+
 \subsection{Interpretation}
 The mostly monotonic drop suggests the network is learning useful features for the selected labels within five epochs. At the same time, loss by itself does not tell us if error types are acceptable. That is why class-wise precision/recall and confusion matrices are still necessary.
 
@@ -197,6 +216,14 @@ For this label, the model is reasonably balanced (precision and recall both arou
 \caption{Per-label confusion matrices on training data (Lung Opacity, Pleural Effusion, Edema).}
 \end{figure}
 
+\subsubsection*{Relevant implementation excerpt: per-label confusion matrices}
+\begin{verbatim}
+for i, label in enumerate(LABELS):
+    cm = confusion_matrix(train_true[:, i], train_pred[:, i], labels=[0, 1])
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", cbar=False, ax=axes[i])
+\end{verbatim}
+\textbf{Why this matters.} This loop creates one confusion matrix per label, which directly supports the assignment requirement to compare predicted and true labels.
+
 For \textit{Pleural Effusion} and \textit{Edema}, the same confusion-matrix method is applied in the notebook code. In the final submission package, the exported figure should include all three matrices so class-specific failure modes can be compared side-by-side. This is important because one class can look strong on recall while another is much weaker under the same threshold.
 
 \section{Overall Summary}
@@ -210,6 +237,40 @@ In short, the current DenseNet-121 model is a solid starting point and satisfies
 
 \section*{Short Deployment Note (Not Main Focus)}
 As a lightweight deployment step, the trained model can be served with a simple Gradio app and published on Hugging Face Spaces \citep{gradio_docs,hf_spaces_docs}. In this project, \texttt{app.py} loads the saved checkpoint, applies the same image preprocessing, and returns multi-label probabilities for uploaded X-rays. For Spaces deployment, the essential files are \texttt{app.py}, \texttt{requirements.txt} (or deployment requirements file), and the model weight file in the expected path.
+
+\subsubsection*{Relevant implementation excerpt: deployment entry in \texttt{app.py}}
+\begin{verbatim}
+model, device = load_model(model_path)
+
+demo = gr.Interface(
+    fn=lambda img: predict(img, model, device),
+    inputs=gr.Image(type="pil", label="Upload chest X-ray"),
+    outputs=gr.Markdown(label="Prediction"),
+    title="Chest X-ray classifier",
+)
+demo.launch()
+\end{verbatim}
+\textbf{Why this matters.} This is the minimal deployment path: load trained weights, wrap prediction in a Gradio interface, and launch a web UI. The same script can run locally or on Spaces with small packaging changes.
+
+\subsubsection*{Relevant implementation excerpt: export in notebook and reuse in app}
+\textbf{Notebook export cell}
+\begin{verbatim}
+MODEL_FILENAME = "chest_xray_densenet.pth"
+torch.save(model.state_dict(), MODEL_FILENAME)
+print(f"Model saved to {os.path.abspath(MODEL_FILENAME)}")
+\end{verbatim}
+
+\textbf{Reuse in \texttt{app.py}}
+\begin{verbatim}
+def load_model(path: str = "chest_xray_densenet.pth"):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model = get_model(len(LABELS)).to(device)
+    state = torch.load(path, map_location=device)
+    model.load_state_dict(state, strict=True)
+    model.eval()
+    return model, device
+\end{verbatim}
+\textbf{Why this matters.} The notebook exports only the learned weights (\texttt{state\_dict}), and the deployment app reconstructs the same architecture before loading those weights. This makes training and deployment consistent while keeping the saved file compact.
 
 This deployment is useful for demonstration and testing, but it should be treated as a prototype. Inference speed depends on available hardware, and outputs should include a clear disclaimer that predictions are decision-support only and not a clinical diagnosis.
 
